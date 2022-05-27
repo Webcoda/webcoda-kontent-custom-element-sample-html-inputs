@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>HTML Inputs</title>
+    <!-- Include jQuery library -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script>
+    <!-- Kontent Styling -->
+    <link rel="stylesheet" href="custom-element.css" />
+    <!-- Kentico Custom elements API-->
+    <script src="https://app.kontent.ai/js-api/custom-element/v1/custom-element.min.js"></script>
+
+    <style>
+      /* We recommended you always set margin to zero to avoid problems when displaying the element in UI */
+      @import url("https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700,400italic,700italic");
+      html {
+        font-family: sans-serif;
+        -ms-text-size-adjust: 100%;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        padding: 10px;
+      }
+
+      .disabled_overlay {
+        position: fixed;
+        background-color: #777;
+        z-index: 10;
+        cursor: not-allowed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.1;
+      }
+
+      .component-object {
+        display: none;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px dashed #ccc;
+      }
+
+      .delete-object {
+        float: right;
+        cursor: pointer;
+      }
+
+      .delete-object:hover {
+        color: #0071b8;
+      }
+
+      .object-input {
+        padding: 5px;
+      }
+
+      .object-input label {
+        font-size: 0.9em;
+        display: block;
+      }
+      .object-input input,
+      .object-input textarea {
+        width: 90%;
+        padding: 5px;
+      }
+      .object-input input[type="color"] {
+        width: 50px;
+        height: 50px;
+        padding: 0px;
+      }
+      .object-input input[type="radio"],
+      .object-input input[type="checkbox"] {
+        width: initial;
+      }
+      .object-input textarea {
+        height: 150px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Custom element HTML -->
+    <div class="disabled_overlay"></div>
+    <div id="components_wrapper"></div>
+    <button id="add_object" class="btn btn--secondary"></button>
+    <script>
+      var mainObject = [];
+      var objectName = "";
+
+      function updateDisabled(disabled) {
+        if (disabled) {
+          $(".disabled_overlay").show();
+        } else {
+          $(".disabled_overlay").hide();
+        }
+      }
+
+      function setup(value, name, inputs) {
+        objectName = name;
+        $("#add_object").text("Add " + objectName);
+
+        if (checkUniqueNames(inputs)) {
+          mainObject = inputs;
+        } else {
+          showError(
+            "Your input configuration contains duplicated names. Please name your inputs uniquely."
+          );
+        }
+
+        if (value) {
+          loadObjects(value);
+        }
+
+        $("#add_object").click(function(e) {
+          addNewObject(null);
+        });
+      }
+
+      function updateSize() {
+        var height = 300;
+        try {
+          height = parseInt($("html").height());
+        } catch (err) {
+          console.error(err);
+        }
+        CustomElement.setHeight(height);
+      }
+
+      function initCustomElement() {
+        try {
+          CustomElement.init((element, _context) => {
+            var name = "new object";
+            var inputs = "";
+            if (element.config) {
+              if (element.config.name) name = element.config.name;
+              if (element.config.inputs) inputs = element.config.inputs;
+            } else {
+              showError(
+                "There is no input configuration specified for this component. Please check the documentation."
+              );
+            }
+            // Setup with initial value and disabled state
+            setup(element.value, name, inputs);
+            updateDisabled(element.disabled);
+            updateSize();
+          });
+          // React when the disabled state changes (e.g. when publishing the item)
+          CustomElement.onDisabledChanged(updateDisabled);
+        } catch (err) {
+          // Initialization with the Custom elements API failed
+          // (page displayed outside of the Kentico Kontent UI)
+          console.error(err);
+          updateDisabled(true);
+        }
+      }
+
+      initCustomElement();
+
+      function addNewObject(passedObject) {
+        if (mainObject) {
+          var id = generateHash();
+          var output =
+            '<div id="' +
+            id +
+            '" class="component-object"><div class="icon-delete delete-object" objectid="' +
+            id +
+            '" title="Delete ' +
+            objectName +
+            '"></div>';
+          for (var x = 0; x < mainObject.length; x++) {
+            var input = '<div class="object-input">';
+            var name = mainObject[x].name;
+            var type = mainObject[x].type;
+            if (name && type) {
+              if (mainObject[x].label)
+                input +=
+                  '<label for="' +
+                  name +
+                  id +
+                  '">' +
+                  mainObject[x].label +
+                  "</label>";
+              var value = passedObject ? passedObject[name] : "";
+              switch (type) {
+                case "text":
+                  input +=
+                    '<input type="' +
+                    mainObject[x].type +
+                    '" id="' +
+                    name +
+                    id +
+                    '" name="' +
+                    name +
+                    '" placeholder="' +
+                    (mainObject[x].placeholder
+                      ? mainObject[x].placeholder
+                      : "") +
+                    '" ' +
+                    (value ? 'value="' + value + '"' : "") +
+                    " />";
+                  break;
+                case "textarea":
+                  input +=
+                    '<textarea id="' +
+                    name +
+                    id +
+                    '" name="' +
+                    name +
+                    '" placeholder="' +
+                    (mainObject[x].placeholder
+                      ? mainObject[x].placeholder
+                      : "") +
+                    '">' +
+                    value +
+                    "</textarea>";
+                  break;
+                case "password":
+                  input +=
+                    '<input type="' +
+                    mainObject[x].type +
+                    '" id="' +
+                    name +
+                    id +
+                    '" name="' +
+                    name +
+                    '" placeholder="' +
+                    (mainObject[x].placeholder
+                      ? mainObject[x].placeholder
+                      : "") +
+                    '" ' +
+                    (value ? 'value="' + value + '"' : "") +
+                    " />";
+                  break;
+                case "radio":
+                  for (var y = 0; y < mainObject[x].options.length; y++) {
+                    input +=
+                      '<input type="' +
+                      mainObject[x].type +
+                      '" id="' +
+                      name +
+                      id +
+                      '" name="' +
+                      name +
+                      id +
+                      '" radioname="' +
+                      name +
+                      '" value="' +
+                      mainObject[x].options[y][0] +
+                      '" ' +
+                      (value == mainObject[x].options[y][0] ? "checked" : "") +
+                      "/> " +
+                      mainObject[x].options[y][1] +
+                      "<br />";
+                  }
+                  break;
+                case "checkbox":
+                  for (var y = 0; y < mainObject[x].options.length; y++) {
+                    input +=
+                      '<input type="' +
+                      mainObject[x].type +
+                      '" id="' +
+                      name +
+                      id +
+                      '" name="' +
+                      name +
+                      '" value="' +
+                      mainObject[x].options[y][0] +
+                      '" ' +
+                      (value.includes(mainObject[x].options[y][0])
+                        ? "checked"
+                        : "") +
+                      " /> " +
+                      mainObject[x].options[y][1] +
+                      "<br />";
+                  }
+                  break;
+                case "color":
+                  input +=
+                    '<input type="' +
+                    mainObject[x].type +
+                    '" id="' +
+                    name +
+                    id +
+                    '" name="' +
+                    name +
+                    '" ' +
+                    (value ? 'value="' + value + '"' : "") +
+                    " />";
+                  break;
+                case "date":
+                  input +=
+                    '<input type="' +
+                    mainObject[x].type +
+                    '" id="' +
+                    name +
+                    id +
+                    '" name="' +
+                    name +
+                    '" ' +
+                    (value ? 'value="' + value + '"' : "") +
+                    " />";
+                  break;
+                case "number":
+                  input +=
+                    '<input type="' +
+                    mainObject[x].type +
+                    '" id="' +
+                    name +
+                    id +
+                    '" name="' +
+                    name +
+                    '" min="' +
+                    (mainObject[x].min ? mainObject[x].min : "") +
+                    '" max="' +
+                    (mainObject[x].max ? mainObject[x].max : "") +
+                    '" step="' +
+                    (mainObject[x].step ? mainObject[x].step : "1") +
+                    '" value="' +
+                    (value
+                      ? value
+                      : mainObject[x].value
+                      ? mainObject[x].value
+                      : "0") +
+                    '" />';
+                  break;
+                case "range":
+                  var min = mainObject[x].min ? mainObject[x].min : "0";
+                  var max = mainObject[x].max ? mainObject[x].max : "10";
+                  input +=
+                    min +
+                    '<input type="' +
+                    mainObject[x].type +
+                    '" id="' +
+                    name +
+                    id +
+                    '" name="' +
+                    name +
+                    '" min="' +
+                    min +
+                    '" max="' +
+                    max +
+                    '" step="' +
+                    (mainObject[x].step ? mainObject[x].step : "1") +
+                    '" ' +
+                    (value ? 'value="' + value + '"' : "") +
+                    " />" +
+                    max;
+                  break;
+                case "time":
+                  input +=
+                    '<input type="' +
+                    mainObject[x].type +
+                    '" id="' +
+                    name +
+                    id +
+                    '" name="' +
+                    name +
+                    '" ' +
+                    (value ? 'value="' + value + '"' : "") +
+                    " />";
+                  break;
+                default:
+                  showError(
+                    "There is no such an input type. Please check documentation for allowed types."
+                  );
+              }
+            } else {
+              showError(
+                'Please specify the "name" and "type" parameters for all of your inputs.'
+              );
+            }
+            output += input + "</div>";
+          }
+          output += "</div>";
+          $("#components_wrapper").append(output);
+          $("#" + id).fadeIn(500);
+
+          updateSize();
+
+          $(".delete-object, input, textarea").off();
+          $(
+            'input[type="text"], input[type="password"], input[type="number"], input[type="date"], input[type="time"], input[type="url"], textarea'
+          ).on("input", function() {
+            saveObjects();
+          });
+          $(
+            'input[type="range"], input[type="radio"], input[type="checkbox"], input[type="color"]'
+          ).on("change", function() {
+            saveObjects();
+          });
+          $(".delete-object").on("click", function() {
+            deleteObject(this);
+          });
+        }
+      }
+
+      function saveObjects() {
+        var jsonData = [];
+        $(".component-object").each(function() {
+          var listName = "";
+          var jsonObject = {};
+          var _this = this;
+          $(_this)
+            .find("input, textarea")
+            .each(function() {
+              if (
+                $(this).attr("type") == "radio" ||
+                $(this).attr("type") == "checkbox"
+              ) {
+                if (listName != $(this).attr("name")) {
+                  if ($(this).attr("type") == "checkbox") {
+                    jsonObject[$(this).attr("name")] = [];
+                  } else {
+                    jsonObject[$(this).attr("radioname")] = "";
+                  }
+                  listName = $(this).attr("name");
+                }
+                if (this.checked) {
+                  if ($(this).attr("type") == "checkbox") {
+                    jsonObject[$(this).attr("name")].push($(this).val());
+                  } else {
+                    jsonObject[$(this).attr("radioname")] = $(this).val();
+                  }
+                  console.log($(this).val());
+                }
+              } else {
+                jsonObject[$(this).attr("name")] = $(this).val();
+              }
+            });
+          jsonData.push(jsonObject);
+        });
+        CustomElement.setValue(JSON.stringify(jsonData));
+      }
+
+      function loadObjects(value) {
+        var jsonData = JSON.parse(value);
+        for (var x = 0; x < jsonData.length; x++) {
+          addNewObject(jsonData[x]);
+        }
+      }
+
+      function deleteObject(object) {
+        $("#" + $(object).attr("objectid")).fadeOut("slow", function() {
+          $(this).remove();
+          updateSize();
+          saveObjects();
+        });
+      }
+
+      function checkUniqueNames(inputs) {
+        var names = [];
+        for (var x = 0; x < inputs.length; x++) {
+          if (names.includes(inputs[x].name)) {
+            return false;
+          }
+          names.push(inputs[x].name);
+        }
+        return true;
+      }
+
+      function generateHash() {
+        return (
+          Math.random()
+            .toString(36)
+            .substring(2) + new Date().getTime().toString(36)
+        );
+      }
+
+      function showError(message) {
+        $("#components_wrapper").html(
+          '<span class="item-status item-status--failed">' + message + "</span>"
+        );
+        $("button").hide();
+      }
+    </script>
+  </body>
+</html>
